@@ -1,0 +1,116 @@
+1-develop my app
+
+2-create a dockerfile for it
+
+3-create a GCS bucket for terraform to write the state
+-you can't really do that with terraform lol
+
+4-create a service account for terraform with those roles:
+i-CE creation: roles/compute.instanceAdmin.v1
+ii-artifact registry creation: roles/artifactregistry.admin
+iii-GCS write to a bucket to write terraform state: roles/storage.objectAdmin
+iv-Ability to give a CE instance ability to use a service account: roles/iam.serviceAccountUser
+v-ability to create a service account: roles/iam.serviceAccountAdmin and assign roles to it: roles/iam.securityAdmin
+
+5-locally on my laptop using the created service account for terraform:
+-download the service account key JSON file and run this command:
+set GOOGLE_APPLICATION_CREDENTIALS="C:\path\to\your\service-account-key.json"
+i-create a CE instance
+ii-create artifact registry docker repo
+iii-create another service account for push/pull from artifact registry repo, and deploy to Cloud run
+iv-give it roles to push/pull from artifact registry repo: roles/artifactregistry.writer and roles/artifactregistry.reader
+and roles to deploy to cloud run: roles/run.admin
+NOT OPTIONAL: If the container itself needs to interact with GCP (and it does),
+it needs its own service account with its own roles. and the way this will work is that the deployer e.g. runner VM
+will need to impersonate the container's service account. and to do this, it needs the role: roles/iam.serviceAccountUser
+v-attach the created service account in 4-iii to the created CE
+
+6-from the CE instance, build docker image and push to artifact registry
+7-from the CE instance, deploy the pushed image of the app to cloud run (using gcloud CLI)
+
+improvements: you don't need to create a CE as a CI/CD runner, just use GitHub actions
+i-the service account does not need be given the CE creation permission
+ii-terraform no longer needs to create a CE
+iii-terraform doesn't need to attach the service account to the CE
+iv-steps 5 and 6 need to be in GitHub actions
+v-the service account key (pusher and puller to artifactregistry) needs to be stored in GH secrets
+
+$env:GOOGLE_APPLICATION_CREDENTIALS = "C:\path\to\your\service_account_key.json"
+
+GCP has a "equivalent code" section that supports CLI, REST, and terraform. amazing!
+
+There are 3 ways to assign roles in terraform gcp:
+1-google_project_iam_member: one role per one account per one terraform block. recommended
+2-google_project_iam_binding: same as iam_member, but OVERWRITES ALL principals assigned to a particular role. disruptive. do NOT
+use unless you explicitly want to do this
+3-google_project_iam_policy: doesn't assign roles to an account, but says who can act on it i.e. service account impersonation.
+
+If you want multiple roles, you need multipel google_project_iam_member blocks. OR you can use a for_each loop
+variable "ci_cd_roles" {
+  type    = list(string)
+  default = [
+    "roles/storage.objectAdmin",
+    "roles/artifactregistry.writer",
+    "roles/compute.instanceAdmin.v1"
+  ]
+}
+
+resource "google_project_iam_member" "ci_cd_service_account_roles" {
+  for_each = toset(var.ci_cd_roles)
+
+  project = var.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.ci-cd-sa.email}"
+}
+
+the "scopes" argument when creating a VM instance refers to endpoints where it can obtain access tokens for authentication without the key.
+scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+This is the minimum.
+run this command to confirm that service account is attached within the right scope: gcloud auth print-access-token
+
+
+some terraform infra updates require stopping a service e.g. VM. terraform can not by default stop a service, so the update is denied
+and throws an error. you can include this arg in the service terraform creation block:
+allow_stopping_for_update = true
+
+CLI argument for starting a service on cloud Run:
+-->There is an automatic CLI generator on the console
+gcloud run deploy arbitrary-service-name \
+  --image <region-name>-docker.pkg.dev/<project-id>/<repo-name>/<image-name>:<tag> \
+  --platform managed \ # i.e. you don't need to manage infrastructure
+  --region <region-name> \
+  --allow-unauthenticated # does not require GCP authentication to access the service deployed.
+  --no-invoker-iam-check \ # this or the above
+  --cpu CPU_LIMIT \ # number of CPUs for each instance
+  --memory MEMORY_LIMIT \ # max memory in MBs as e.g. 512Mi
+  --concurrency CONCURRENCY_LIMIT \ # max number of concurrent requests to send to the instance.
+  --env-vars VAR1=value1,VAR2=value2 \ # comma separated key/value pairs to be injected inside container.
+  --timeout TIMEOUT \ #  seconds for any ingress request timeout
+  --port PORT_NUMBER \ # the port to open. default is 8000
+  --max-instances MAX_INSTANCES \
+  --min-instances MIN_INSTANCES \
+  --no-traffic # requests will not be received by the container until you explicitly turn it back on. can be used to test container health first.
+  --project <project-id> \
+  --region <region-name> \
+  --args=--workers,5 \# this is a list of comma separated as a placeholder for spaces. so --workers 5 is --workers,5,--host,0.0.0.0, etc.
+  --service-account= # the name of the service account to be used by the container
+
+-->The container will need to have a service account, but more on that later.
+
+Q: How to use environemnt variables inside the container?
+1-add as explicit key/value pairs during creation.
+2-store .env on GCS, and download it in your container app code, then use it.
+3-use google cloud secrets instead. the best and most recommended.
+4-mount inside a volume
+
+===================================================================================
+
+let me try deploying as a function instead
+
+CLI:
+-the resource must first be created though using tf or whatever.
+gcloud run deploy <function-service-name> \
+       --source <local_path_to_code_dir> \
+       --function <function_name>\
+       --base-image python3xx \ # this is actually the shortened url of the runtime docker image.
+       --region <region-name>

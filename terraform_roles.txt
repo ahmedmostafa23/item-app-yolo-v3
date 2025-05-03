@@ -1,0 +1,3 @@
+To be able to create this resource, you need this role
+artifact registry repo: roles/artifactregistry.admin
+save terraform state to GCS: roles/storage.objectAdmin (has full read, write, and delete per bucket)

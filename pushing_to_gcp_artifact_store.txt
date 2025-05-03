@@ -1,0 +1,44 @@
+download gcloud on windows: https://cloud.google.com/sdk/docs/install
+
+1-service account must have  Artifact Registry Reader (roles/artifactregistry.reader) to pull
+and Artifact Registry Writer (roles/artifactregistry.writer) to push images
+
+2-Authenticate yourself in GCP
+i-manual (human account) login
+gcloud auth configure-docker region-name-docker.pkg.dev
+ii-service account with key
+gcloud auth activate-service-account --key-file=service-account-key.json
+gcloud auth configure-docker region-name-docker.pkg.dev --quiet
+iii-service account on VM inside GCP
+gcloud auth configure-docker region-name-docker.pkg.dev --quiet
+
+-->EXTREMLEY V.I.P. lol. you need to add "sudo" to the above command if you're doing it from a CI/CD runner inside GCP to authenticate.
+
+So in all cases you need to authenticate yourself.
+
+3-tag the image
+docker tag my-image:tag region-name-docker.pkg.dev/project-id/repo-name/my-image:tag
+
+4-push it
+docker push region-name-docker.pkg.dev/project-id/repo-name/my-image:tag
+
+5-pull it
+-you also need to authenticate first
+docker pull region-name-docker.pkg.dev/project-id/repo-name/my-image:tag
+
+-->all images are private by default. you can make an image public (the whole repo, not a particular image)
+by setting IAM roles
+
+bucket public access: objects in the buckets can be accessed from outside GCP WITHOUT authentication.
+If you don't allow it, then you can still access from outside GCP, but with authentication and authorization.
+
+Q: Who can access the items in a non public bucket?
+-anyone with a GCP account (service or human) with the suitable role to read/write from GCS buckets.
+roles/storage.objectViewer
+roles/storage.objectCreator
+roles/storage.objectAdmin
+
+-there are 3 urls: public (not applicable in this case), authenticated (used by anyone with the above condiiton)
+-and internal uri gs://
+
+-ACL or conditional access can let you specify per object permissions inside the same bucket.
