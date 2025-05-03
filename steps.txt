@@ -14,16 +14,21 @@ v-ability to create a service account: roles/iam.serviceAccountAdmin and assign 
 
 5-locally on my laptop using the created service account for terraform:
 -download the service account key JSON file and run this command:
-set GOOGLE_APPLICATION_CREDENTIALS="C:\path\to\your\service-account-key.json"
+set GOOGLE_APPLICATION_CREDENTIALS="C:\path\to\your\service-account-key.json" (cmd)
+$env:GOOGLE_APPLICATION_CREDENTIALS = "C:\path\to\your\service-account-key.json" (powerhsll)
 i-create a CE instance
 ii-create artifact registry docker repo
 iii-create another service account for push/pull from artifact registry repo, and deploy to Cloud run
 iv-give it roles to push/pull from artifact registry repo: roles/artifactregistry.writer and roles/artifactregistry.reader
-and roles to deploy to cloud run: roles/run.admin
+and roles to deploy to cloud run: roles/run.admin. This is also required for FaaS functions.
 NOT OPTIONAL: If the container itself needs to interact with GCP (and it does),
 it needs its own service account with its own roles. and the way this will work is that the deployer e.g. runner VM
 will need to impersonate the container's service account. and to do this, it needs the role: roles/iam.serviceAccountUser
 v-attach the created service account in 4-iii to the created CE
+
+vi-to deploy cloud function, you also need: roles/run.admin, roles/cloudbuild.builds.editor, and 
+roles/storage.admin because the --source . argument means "upload this code temporarily" to GCS and use it from there.
+and also roles/serviceusage.serviceUsageConsumer for some reason idk
 
 6-from the CE instance, build docker image and push to artifact registry
 7-from the CE instance, deploy the pushed image of the app to cloud run (using gcloud CLI)

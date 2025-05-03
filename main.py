@@ -1,7 +1,8 @@
 items = []
 
-def health_check():
-    return {"result": "healthy"}
+def health_check(request):
+    
+    return {"result": request.get_json(), "health": "healthy"}
 
 def get_items():
     return {"result": items}

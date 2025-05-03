@@ -102,6 +102,24 @@ resource "google_project_iam_member" "ci-cd-sa-cloud-service-account-user" {
   member  = "serviceAccount:${google_service_account.ci-cd-sa.email}"
 }
 
+resource "google_project_iam_member" "ci-cd-sa-cloud-build-editor" {
+  project = "bigquery-ml-course-457617"
+  role    = "roles/cloudbuild.builds.editor"
+  member  = "serviceAccount:${google_service_account.ci-cd-sa.email}"
+}
+
+resource "google_project_iam_member" "ci-cd-sa-cloud-storage-admin" {
+  project = "bigquery-ml-course-457617"
+  role    = "roles/storage.admin"
+  member  = "serviceAccount:${google_service_account.ci-cd-sa.email}"
+}
+
+resource "google_project_iam_member" "ci-cd-sa-service-usage-consumer" {
+  project = "bigquery-ml-course-457617"
+  role    = "roles/serviceusage.serviceUsageConsumer"
+  member  = "serviceAccount:${google_service_account.ci-cd-sa.email}"
+}
+
 
 # artifact registry repository
 resource "google_artifact_registry_repository" "my-repo" {
@@ -112,25 +130,25 @@ resource "google_artifact_registry_repository" "my-repo" {
 }
 
 # cloud run function (FaaS)
-resource "google_cloudfunctions2_function" "item-app-faas" {
-  name = "item-app-faas"
-  location = "me-central1"
-  description = "item-app deployed as a serverless faas"
+# resource "google_cloudfunctions2_function" "item-app-faas" {
+#   name = "item-app-faas"
+#   location = "me-central1"
+#   description = "item-app deployed as a serverless faas"
 
-  build_config {
-    runtime = "python10"
-    entry_point = "hello_world"  # Set the entry point 
-    source {
-      storage_source {
-        bucket = google_storage_bucket.bucket.name
-        object = google_storage_bucket_object.object.name
-      }
-    }
-  }
+#   build_config {
+#     runtime = "python10"
+#     entry_point = "hello_world"  # Set the entry point 
+#     source {
+#       storage_source {
+#         bucket = google_storage_bucket.bucket.name
+#         object = google_storage_bucket_object.object.name
+#       }
+#     }
+#   }
 
-  service_config {
-    max_instance_count  = 1
-    available_memory    = "256M"
-    timeout_seconds     = 60
-  }
-}
+#   service_config {
+#     max_instance_count  = 1
+#     available_memory    = "256M"
+#     timeout_seconds     = 60
+#   }
+# }
