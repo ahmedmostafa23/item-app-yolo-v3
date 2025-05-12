@@ -11,6 +11,7 @@ ii-artifact registry creation: roles/artifactregistry.admin
 iii-GCS write to a bucket to write terraform state: roles/storage.objectAdmin
 iv-Ability to give a CE instance ability to use a service account: roles/iam.serviceAccountUser
 v-ability to create a service account: roles/iam.serviceAccountAdmin and assign roles to it: roles/iam.securityAdmin
+vi-ability to create services on cloud run: roles/run.admin
 
 5-locally on my laptop using the created service account for terraform:
 -download the service account key JSON file and run this command:
@@ -119,3 +120,40 @@ gcloud run deploy <function-service-name> \
        --function <function_name>\
        --base-image python3xx \ # this is actually the shortened url of the runtime docker image.
        --region <region-name>
+
+===============================================================================
+
+to create cloud run container
+google_cloud_run_v2_service and its equivalent _job
+
+But it won't be accessible.
+ingress = "INGRESS_TRAFFIC_ALL" indicates that it can be accessible from anywhere and not just GCP internal,
+but you still need auth by default. GCP internal is "INGRESS_TRAFFIC_INTERNAL_ONLY"
+
+to allow anyone to authenticate:
+resource "google_cloud_run_v2_service_iam_member" "public_invoker" {
+  location    = google_cloud_run_v2_service.item-app-container-deployment.location
+  name        = google_cloud_run_v2_service.item-app-container-deployment.name
+  role        = "roles/run.invoker"
+  member      = "allUsers"
+}
+or ideally, this one:
+resource "google_cloud_run_v2_service_iam_member" "noauth" {
+  location = google_cloud_run_v2_service.service-name.location
+  name     = google_cloud_run_v2_service.service-name.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+-you can also create as many as those for as many users or service account as you desire if you don't
+want just anyone to authenticate.
+====================================================================================
+
+ or cloud run function using terraform, you use the same terraform block with a few different configs
+ -There is no such thing as cloud functions anymore. only cloud run. in both tf, console, cli, and python.
+
+-BUT HOWEVER, you will need to actually build the image into an artifact registry image first, and use its url
+out of the box.
+
+I don't think this is how cloud run functions or container services should be used. I think CLI is the way to go
+but these mfs hold infrastructure. how can I track them?

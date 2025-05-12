@@ -1,3 +1,4 @@
+# terraform block
 terraform {
   backend "gcs" {
     bucket  = "terraform-state-yolo194"
@@ -5,15 +6,13 @@ terraform {
   }
 }
 
+# provider block
 provider "google" {
   project = "bigquery-ml-course-457617"
   region  = "me-central1"
 }
 
-# This code is compatible with Terraform 4.25.0 and versions that are backwards compatible to 4.25.0.
-# For information about validating this Terraform code, see https://developer.hashicorp.com/terraform/tutorials/gcp-get-started/google-cloud-platform-build#format-and-validate-the-configuration
-
-# compute instance with service account attached.
+# the CE VM instance
 resource "google_compute_instance" "ci-cd-runner" {
   allow_stopping_for_update = true
   boot_disk {
@@ -129,26 +128,53 @@ resource "google_artifact_registry_repository" "my-repo" {
   format        = "DOCKER"
 }
 
+# cloud run container
+resource "google_cloud_run_v2_service" "item-app-container-deployment" {
+  name     = "cloudrun-item-app"
+  location = "me-central1"
+  deletion_protection = false
+  ingress = "INGRESS_TRAFFIC_ALL"
+
+  template {
+    containers {
+      image = "us-docker.pkg.dev/cloudrun/container/hello"
+    }
+  }
+
+  traffic {
+    type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+    percent = 100
+  }
+}
+
+# this is to allow anyone to invoke it.
+resource "google_cloud_run_v2_service_iam_member" "public_item-app-service-invoker" {
+  location    = google_cloud_run_v2_service.item-app-container-deployment.location
+  name        = google_cloud_run_v2_service.item-app-container-deployment.name
+  role        = "roles/run.invoker"
+  member      = "allUsers"
+}
+
 # cloud run function (FaaS)
-# resource "google_cloudfunctions2_function" "item-app-faas" {
-#   name = "item-app-faas"
-#   location = "me-central1"
-#   description = "item-app deployed as a serverless faas"
+resource "google_cloudfunctions2_function" "item-app-faas" {
+  name = "item-app-faas"
+  location = "me-central1"
+  description = "item-app deployed as a serverless faas"
 
-#   build_config {
-#     runtime = "python10"
-#     entry_point = "hello_world"  # Set the entry point 
-#     source {
-#       storage_source {
-#         bucket = google_storage_bucket.bucket.name
-#         object = google_storage_bucket_object.object.name
-#       }
-#     }
-#   }
+  build_config {
+    runtime = "python10"
+    entry_point = "hello_world"  # Set the entry point 
+    source {
+      storage_source {
+        bucket = "terraform-state-yolo194"
+        object = "yolo.py""
+      }
+    }
+  }
 
-#   service_config {
-#     max_instance_count  = 1
-#     available_memory    = "256M"
-#     timeout_seconds     = 60
-#   }
-# }
+  service_config {
+    max_instance_count  = 1
+    available_memory    = "256M"
+    timeout_seconds     = 60
+  }
+}
